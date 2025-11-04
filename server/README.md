@@ -1,10 +1,23 @@
-# Running the Server
+# Running the server
 
-Install `uv` via `pip install uv`
+Install uv (if not already installed)
 
-Run `python -m uv sync` in /server to get the dependencies for server
+Windows:
+```bash
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
 
-Execute the following command
+Start the virtual environment:
+```bash
+.\.venv\Scripts\activate
+```
+
+Sync dependencies:
+```bash
+uv sync
+```
+
+Start the server:
 ```bash
 fastapi dev main.py
 ```
