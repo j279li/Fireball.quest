@@ -1,5 +1,8 @@
-**To run (from this directory):**
-uvicorn main:app --reload
+# Running the Server
 
-Check this link:
-http://127.0.0.1:8000
+Execute the following command
+```bash
+fastapi dev main.py
+```
+
+Check the API documentation at <http://localhost:8000/docs>
