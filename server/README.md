@@ -1,8 +1,5 @@
 # Running the Server
 
-Execute the following command
-```bash
-fastapi dev main.py
-```
+Install `uv` via `pip install uv`
 
-Check the API documentation at <http://localhost:8000/docs>
+Run `python -m uv sync` in /server to get the dependencies for server
