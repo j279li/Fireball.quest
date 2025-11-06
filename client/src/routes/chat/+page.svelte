@@ -5,30 +5,65 @@
   import MessageItem from "./MessageItem.svelte";
   import { onMount, onDestroy, tick } from "svelte";
 
-  // incoming message shape from the server (extend as you add fields)
+  // message shape from backend
   type WireMsg = {
     username: string;
-    message: string;
+    message: string | { message: string; tag?: string };
     avatarUrl?: string;
-    tag?: string;     // e.g., "Roll" | "OOC" | "Action"
-    ts?: number;      // epoch ms from server (optional)
+    tag?: string;
+    ts?: number;
   };
 
   let ws: WebSocket;
   let scroller: HTMLDivElement;
 
-  // local state (Svelte 5 runes)
   let messages = $state<
-    Array<
-      Required<Pick<WireMsg, "username" | "message">> & {
-        avatarUrl?: string;
-        tag?: string;
-        ts: number;
-      }
-    >
+    {
+      username: string;
+      message: string;
+      tag?: string;
+      avatarUrl?: string;
+      ts: number;
+    }[]
   >([]);
 
   let text = $state("");
+
+  // toolbar state
+  type Tool = "image" | "note" | "roll" | "ooc" | "action" | null;
+  let activeTool: Tool = $state(null);
+
+  function toggleTool(t: Exclude<Tool, null>) {
+    activeTool = activeTool === t ? null : t;
+  }
+
+  function toolToTag(t: Tool) {
+    if (t === "ooc") return "OOC";
+    if (t === "action") return "Action";
+    if (t === "roll") return "Roll";
+    return undefined;
+  }
+
+  function toolPlaceholder(t: Tool) {
+    if (t === "action") return "Send battle message...";
+    if (t === "ooc") return "Send OOC message...";
+    if (t === "roll") return "Type roll command (e.g., 1d20+2)...";
+    return "Type a message...";
+  }
+
+  // decode server responses that may echo JSON as string
+  function decodeIncoming(raw: WireMsg) {
+    if (typeof raw.message === "object")
+      return { text: raw.message.message, tag: raw.message.tag ?? raw.tag };
+
+    const s = raw.message as string;
+    try {
+      const parsed = JSON.parse(s);
+      if (parsed && typeof parsed === "object" && "message" in parsed)
+        return { text: parsed.message, tag: parsed.tag ?? raw.tag };
+    } catch {}
+    return { text: s, tag: raw.tag };
+  }
 
   onMount(() => {
     ws = new WebSocket(
@@ -37,43 +72,39 @@
         localStorage.getItem("token")
     );
 
-    ws.onmessage = (event) => {
-      const m: WireMsg = JSON.parse(event.data);
+    ws.onmessage = (e) => {
+      const raw: WireMsg = JSON.parse(e.data);
+      const { text, tag } = decodeIncoming(raw);
+
       messages = [
         ...messages,
         {
-          username: m.username,
-          message: m.message,
-          avatarUrl: m.avatarUrl,
-          tag: m.tag,
-          ts: m.ts ?? Date.now()
-        }
+          username: raw.username,
+          message: text,
+          avatarUrl: raw.avatarUrl,
+          tag,
+          ts: raw.ts ?? Date.now(),
+        },
       ];
     };
 
-    ws.onerror = () => {
-      console.error("WebSocket error");
-    };
+    ws.onerror = () => console.error("WebSocket error");
   });
 
   onDestroy(() => {
-    if (ws && ws.readyState === WebSocket.OPEN) ws.close();
+    if (ws?.readyState === WebSocket.OPEN) ws.close();
   });
 
   function sendMessage() {
     const payload = text.trim();
-    if (!payload) return;
-    if (ws?.readyState === WebSocket.OPEN) {
-      ws.send(payload);
-      text = "";
-    }
+    if (!payload || ws?.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ message: payload, tag: toolToTag(activeTool) }));
+    text = "";
   }
 
-  // Auto-scroll when messages change (runes-mode safe)
+  // auto-scroll to bottom
   $effect(() => {
-    // establish dependency
     void messages.length;
-    // wait for DOM paint then scroll
     tick().then(() => {
       if (scroller) scroller.scrollTop = scroller.scrollHeight;
     });
@@ -81,35 +112,83 @@
 </script>
 
 <div class="flex flex-col flex-1 p-6">
-  <h1 class="text-2xl font-semibold mb-4 shrink-0">Global Chat</h1>
+  <h1 class="text-2xl font-semibold mb-4">Global Chat</h1>
 
   <div class="flex flex-col gap-3 flex-1">
-    <!-- Messages panel -->
-    <div
-      bind:this={scroller}
-      class="flex-1 overflow-y-auto rounded-lg border bg-muted/30 p-4"
-    >
+    <!-- Messages -->
+    <div bind:this={scroller} class="flex-1 overflow-y-auto rounded-lg border bg-muted/30 p-4">
       <ul class="space-y-4">
         {#each messages as m (m.ts + m.username + m.message)}
-          <MessageItem
-            username={m.username}
-            message={m.message}
-            avatarUrl={m.avatarUrl}
-            tag={m.tag}
-            ts={m.ts}
-          />
+          <MessageItem {...m} />
         {/each}
       </ul>
     </div>
 
     <!-- Composer -->
-    <form
-      class="flex w-full items-center gap-2 shrink-0"
-      on:submit|preventDefault={sendMessage}
-    >
+    <form class="flex items-center gap-2 shrink-0" on:submit|preventDefault={sendMessage}>
+      <!-- Toolbar -->
+      <div class="flex items-center gap-2 pr-2">
+        <button
+          type="button"
+          aria-pressed={activeTool === "image"}
+          on:click={() => toggleTool("image")}
+          class="flex items-center justify-center h-9 w-9 rounded-md border transition
+                 {activeTool === 'image'
+                   ? 'bg-primary text-primary-foreground border-primary'
+                   : 'bg-transparent text-muted-foreground hover:bg-accent'}"
+          title="Image"
+        >🖼️</button>
+
+        <button
+          type="button"
+          aria-pressed={activeTool === "note"}
+          on:click={() => toggleTool("note")}
+          class="flex items-center justify-center h-9 w-9 rounded-md border transition
+                 {activeTool === 'note'
+                   ? 'bg-primary text-primary-foreground border-primary'
+                   : 'bg-transparent text-muted-foreground hover:bg-accent'}"
+          title="Note"
+        >📄</button>
+
+        <button
+          type="button"
+          aria-pressed={activeTool === "roll"}
+          on:click={() => toggleTool("roll")}
+          class="flex items-center justify-center h-9 w-9 rounded-md border transition
+                 {activeTool === 'roll'
+                   ? 'bg-primary text-primary-foreground border-primary'
+                   : 'bg-transparent text-muted-foreground hover:bg-accent'}"
+          title="Roll"
+        >🎲</button>
+
+        <button
+          type="button"
+          aria-pressed={activeTool === "ooc"}
+          on:click={() => toggleTool("ooc")}
+          class="h-9 px-3 rounded-md border transition
+                 {activeTool === 'ooc'
+                   ? 'bg-primary text-primary-foreground border-primary'
+                   : 'bg-transparent text-muted-foreground hover:bg-accent'}"
+          title="Out of Character"
+        >OOC</button>
+
+        <button
+          type="button"
+          aria-pressed={activeTool === "action"}
+          on:click={() => toggleTool("action")}
+          class="flex items-center gap-1 h-9 px-3 rounded-md border transition
+                 {activeTool === 'action'
+                   ? 'bg-primary text-primary-foreground border-primary'
+                   : 'bg-transparent text-muted-foreground hover:bg-accent'}"
+          title="Action"
+        >
+          ⚡ <span>Action</span>
+        </button>
+      </div>
+
       <Input
         bind:value={text}
-        placeholder="Type a message..."
+        placeholder={toolPlaceholder(activeTool)}
         on:keydown={(e) => {
           if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
