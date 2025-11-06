@@ -1,7 +1,6 @@
 <script lang="ts">
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import { Separator } from "$lib/components/ui/separator";
-  import { Button } from "$lib/components/ui/button";
   import { page } from "$app/stores";
   import { goto } from "$app/navigation";
 
@@ -10,13 +9,17 @@
 
   $: url = $page.url;
   // read selection from query param; default to character
-  $: active = (url.searchParams.get("panel") ?? "character") as "character" | "spells" | "items" | "notes";
+  $: active = (url.searchParams.get("panel") ?? "character") as
+    | "character"
+    | "spells"
+    | "items"
+    | "notes";
 
   const links = [
     { id: "character", label: "Character", icon: "👤" },
-    { id: "spells",    label: "Spells",    icon: "⚡" },
-    { id: "items",     label: "Items",     icon: "📦" },
-    { id: "notes",     label: "Notes",     icon: "📝" },
+    { id: "spells", label: "Spells", icon: "⚡" },
+    { id: "items", label: "Items", icon: "📦" },
+    { id: "notes", label: "Notes", icon: "📝" }
   ] as const;
 
   function setPanel(id: typeof links[number]["id"]) {
@@ -32,7 +35,10 @@
 <div class="flex h-full flex-col">
   <!-- Header (fixed) -->
   <div class="p-4 pb-3 shrink-0">
-    <a href="/home" class="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+    <a
+      href="/home"
+      class="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+    >
       ← <span>Back to Home</span>
     </a>
     <h1 class="mt-3 text-lg font-semibold leading-tight">
@@ -47,7 +53,6 @@
 
   <Separator class="shrink-0" />
 
-  <!-- Scrollable body (nav + dynamic panel) -->
   <ScrollArea class="flex-1 min-h-0 px-2">
     <!-- nav -->
     <nav class="mt-3 space-y-1">
@@ -56,9 +61,9 @@
           type="button"
           on:click={() => setPanel(link.id)}
           class={`w-full text-left flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium
-                  ${isActive(link.id)
-                    ? "bg-accent text-accent-foreground shadow-sm"
-                    : "text-foreground/90 hover:bg-accent hover:text-accent-foreground"}`}
+            ${isActive(link.id)
+              ? "bg-accent text-accent-foreground shadow-sm"
+              : "text-foreground/90 hover:bg-accent hover:text-accent-foreground"}`}
         >
           <span>{link.icon}</span>
           <span>{link.label}</span>
@@ -68,7 +73,6 @@
 
     <Separator class="my-4" />
 
-    <!-- dynamic panel -->
     {#if active === "character"}
       <SidebarCharacter />
     {:else if active === "spells"}
@@ -79,11 +83,4 @@
       <div class="p-3 text-sm text-muted-foreground">Notes panel coming soon…</div>
     {/if}
   </ScrollArea>
-
-  <Separator class="shrink-0" />
-
-  <!-- Footer (fixed) -->
-  <div class="p-4 shrink-0">
-    <Button class="w-full" variant="secondary">+ New Channel</Button>
-  </div>
 </div>
